@@ -1,0 +1,143 @@
+name: CI/CD Pipeline - NexusAI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'principal/**'
+      - 'features/**'
+      - 'pricing/**'
+      - 'about/**'
+      - 'contact/**'
+      - 'blog/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'principal/**'
+      - 'features/**'
+      - 'pricing/**'
+      - 'about/**'
+      - 'contact/**'
+      - 'blog/**'
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  REGISTRY_NAME: nexusai
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_changes: ${{ steps.set-matrix.outputs.has_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files_yaml: |
+            principal:
+              - 'principal/**'
+            features:
+              - 'features/**'
+            pricing:
+              - 'pricing/**'
+            about:
+              - 'about/**'
+            contact:
+              - 'contact/**'
+            blog:
+              - 'blog/**'
+
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          APPS=()
+
+          if [[ "${{ steps.changed-files.outputs.principal_any_changed }}" == "true" ]]; then
+            APPS+=("principal")
+          fi
+          if [[ "${{ steps.changed-files.outputs.features_any_changed }}" == "true" ]]; then
+            APPS+=("features")
+          fi
+          if [[ "${{ steps.changed-files.outputs.pricing_any_changed }}" == "true" ]]; then
+            APPS+=("pricing")
+          fi
+          if [[ "${{ steps.changed-files.outputs.about_any_changed }}" == "true" ]]; then
+            APPS+=("about")
+          fi
+          if [[ "${{ steps.changed-files.outputs.contact_any_changed }}" == "true" ]]; then
+            APPS+=("contact")
+          fi
+          if [[ "${{ steps.changed-files.outputs.blog_any_changed }}" == "true" ]]; then
+            APPS+=("blog")
+          fi
+
+          if [ ${#APPS[@]} -eq 0 ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "matrix={\"app\":[]}" >> $GITHUB_OUTPUT
+            echo "No apps changed"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            JSON=$(printf '%s\n' "${APPS[@]}" | jq -R . | jq -s -c '{app: .}')
+            echo "matrix=$JSON" >> $GITHUB_OUTPUT
+            echo "Changed apps: ${APPS[*]}"
+          fi
+
+  build-and-push:
+    name: Build ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          echo "image_name=${{ env.ACR_LOGIN_SERVER }}/${{ env.REGISTRY_NAME }}-${{ matrix.app }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.app }}
+          file: ./${{ matrix.app }}/Dockerfile
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.image_name }}:latest
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image_name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.meta.outputs.image_name }}:buildcache,mode=max
+          platforms: linux/amd64
+          provenance: false
+
+      - name: Image build summary
+        run: |
+          echo "### 🚀 ${{ matrix.app }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ steps.meta.outputs.image_name }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "✅ **Pushed to ACR**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ **Built only (PR)**" >> $GITHUB_STEP_SUMMARY
+          fi

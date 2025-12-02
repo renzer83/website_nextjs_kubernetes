@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nexusai-pricing
+  labels:
+    app: nexusai-pricing
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - pricing.nexusai.example.com
+    secretName: nexusai-pricing-tls
+  rules:
+  - host: pricing.nexusai.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nexusai-pricing
+            port:
+              number: 80

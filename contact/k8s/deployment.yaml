@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexusai-contact
+  labels:
+    app: nexusai-contact
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexusai-contact
+  template:
+    metadata:
+      labels:
+        app: nexusai-contact
+    spec:
+      containers:
+        - name: nexusai-contact
+          image: baseimagetools.azurecr.io/nexusai-contact:latest
+          ports:
+            - containerPort: 3000

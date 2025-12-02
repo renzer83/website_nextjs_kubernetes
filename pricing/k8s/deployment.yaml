@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexusai-pricing
+  labels:
+    app: nexusai-pricing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexusai-pricing
+  template:
+    metadata:
+      labels:
+        app: nexusai-pricing
+    spec:
+      containers:
+        - name: nexusai-pricing
+          image: baseimagetools.azurecr.io/nexusai-pricing:latest
+          ports:
+            - containerPort: 3000

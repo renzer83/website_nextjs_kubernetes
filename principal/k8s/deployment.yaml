@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexusai-principal
+  labels:
+    app: nexusai-principal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexusai-principal
+  template:
+    metadata:
+      labels:
+        app: nexusai-principal
+    spec:
+      containers:
+        - name: nexusai-principal
+          image: baseimagetools.azurecr.io/nexusai-principal:latest
+          ports:
+            - containerPort: 3000

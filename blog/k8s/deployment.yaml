@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexusai-blog
+  labels:
+    app: nexusai-blog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexusai-blog
+  template:
+    metadata:
+      labels:
+        app: nexusai-blog
+    spec:
+      containers:
+        - name: nexusai-blog
+          image: baseimagetools.azurecr.io/nexusai-blog:latest
+          ports:
+            - containerPort: 3000
